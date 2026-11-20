@@ -191,7 +191,7 @@ extends Module {
     public final Setting<Float> attackCooldown = new Setting<Float>("AttackCooldown", Float.valueOf(0.9f), Float.valueOf(0.5f), Float.valueOf(1.0f)).addToGroup(this.advanced);
     public final Setting<Float> attackBaseTime = new Setting<Float>("AttackBaseTime", Float.valueOf(0.5f), Float.valueOf(0.0f), Float.valueOf(2.0f)).addToGroup(this.advanced);
     public final Setting<Integer> attackTickLimit = new Setting<Integer>("AttackTickLimit", 11, 0, 20).addToGroup(this.advanced);
-    public final Setting<Float> critFallDistance = new Setting<Float>("CritFallDistance", Float.valueOf(0.0f), Float.valueOf(0.0f), Float.valueOf(1.0f)).addToGroup(this.advanced);
+    public final Setting<Float> critFallDistance = new Setting<Float>("CritFallDistance", Float.valueOf(0.08f), Float.valueOf(0.0f), Float.valueOf(1.0f)).addToGroup(this.advanced);
     public final Setting<Boolean> predict = new Setting<Boolean>("Predict", false).addToGroup(this.advanced);
     public final Setting<Float> predictMultiplier = new Setting<Float>("PredictMultiplier", Float.valueOf(3.0f), Float.valueOf(0.0f), Float.valueOf(10.0f), v -> this.predict.getValue()).addToGroup(this.advanced);
     public final Setting<Boolean> visualTurn = new Setting<Boolean>("VisualTurn", false).addToGroup(this.advanced);
@@ -238,39 +238,41 @@ extends Module {
     }
 
     public void auraLogic() {
-        boolean readyForAttack;
-        if (!this.haveWeapon()) {
-            target = null;
-            return;
-        }
-        this.handleKill();
-        this.updateTarget();
-        if (target == null) {
-            return;
-        }
-        if (!Aura.mc.options.jumpKey.isPressed() && Aura.mc.player.isOnGround() && this.autoJump.getValue().booleanValue()) {
+    boolean readyForAttack;
+    if (!this.haveWeapon()) {
+        target = null;
+        return;
+    }
+    this.handleKill();
+    this.updateTarget();
+    if (target == null) {
+        return;
+    }
+    if (!Aura.mc.options.jumpKey.isPressed() && Aura.mc.player.isOnGround() && this.autoJump.getValue().booleanValue() && this.smartCrit.getValue().isEnabled()) {
+        if (target != null && this.isInRange(target) && this.getAttackCooldown() > 0.85f) {
             Aura.mc.player.jump();
         }
-        if (this.grimRayTrace.getValue().booleanValue()) {
-            readyForAttack = this.autoCrit() && (this.lookingAtHitbox || this.skipRayTraceCheck());
-            this.calcRotations(this.autoCrit());
-        } else {
-            this.calcRotations(this.autoCrit());
-            readyForAttack = this.autoCrit() && (this.lookingAtHitbox || this.skipRayTraceCheck());
-            boolean bl = readyForAttack;
+    }
+    boolean isCritting = this.autoCrit();
+    if (this.grimRayTrace.getValue().booleanValue()) {
+        readyForAttack = isCritting && (this.lookingAtHitbox || this.skipRayTraceCheck());
+        this.calcRotations(isCritting);
+    } else {
+        this.calcRotations(isCritting);
+        readyForAttack = isCritting && (this.lookingAtHitbox || this.skipRayTraceCheck());
+    }
+    if (readyForAttack) {
+        PlayerEntity pl;
+        if (this.shieldBreaker(false)) {
+            return;
         }
-        if (readyForAttack) {
-            PlayerEntity pl;
-            if (this.shieldBreaker(false)) {
-                return;
-            }
-            boolean[] playerState = this.preAttack();
-            Entity class_12972 = target;
-            if (!(class_12972 instanceof PlayerEntity) || !(pl = (PlayerEntity)class_12972).isUsingItem() || pl.getOffHandStack().getItem() != Items.SHIELD || this.ignoreShield.getValue().booleanValue()) {
-                this.attack();
-            }
-            this.postAttack(playerState[0], playerState[1]);
+        boolean[] playerState = this.preAttack();
+        Entity class_12972 = target;
+        if (!(class_12972 instanceof PlayerEntity) || !(pl = (PlayerEntity)class_12972).isUsingItem() || pl.getOffHandStack().getItem() != Items.SHIELD || this.ignoreShield.getValue().booleanValue()) {
+            this.attack();
         }
+        this.postAttack(playerState[0], playerState[1]);
+    }
     }
 
     private boolean haveWeapon() {
@@ -331,17 +333,16 @@ extends Module {
         }
     }
 
+    
     private void disableSprint() {
-        Aura.mc.player.setSprinting(false);
-        Aura.mc.options.sprintKey.setPressed(false);
-        this.sendPacket((Packet<?>)new ClientCommandC2SPacket((Entity)Aura.mc.player, ClientCommandC2SPacket.Mode.STOP_SPRINTING));
-    }
+    Aura.mc.player.setSprinting(false);
+    this.sendPacket((Packet<?>)new ClientCommandC2SPacket((Entity)Aura.mc.player, ClientCommandC2SPacket.Mode.STOP_SPRINTING));
+}
 
-    private void enableSprint() {
-        Aura.mc.player.setSprinting(true);
-        Aura.mc.options.sprintKey.setPressed(true);
-        this.sendPacket((Packet<?>)new ClientCommandC2SPacket((Entity)Aura.mc.player, ClientCommandC2SPacket.Mode.START_SPRINTING));
-    }
+private void enableSprint() {
+    Aura.mc.player.setSprinting(true);
+    this.sendPacket((Packet<?>)new ClientCommandC2SPacket((Entity)Aura.mc.player, ClientCommandC2SPacket.Mode.START_SPRINTING));
+}
 
     public void resolvePlayers() {
         if (this.resolver.not(Resolver.Off)) {
@@ -415,30 +416,33 @@ extends Module {
     }
 
     @EventHandler
-    public void onSync(EventSync e) {
-        if (!this.pauseTimer.passedMs(1000L)) {
-            return;
-        }
-        if (Aura.mc.player.isUsingItem() && this.pauseWhileEating.getValue().booleanValue()) {
-            return;
-        }
-        if (!this.haveWeapon()) {
-            return;
-        }
-        if (target != null && this.rotationMode.getValue() != Mode.None && this.rotationMode.getValue() != Mode.Grim) {
-            Aura.mc.player.setYaw(this.rotationYaw);
-            Aura.mc.player.setPitch(this.rotationPitch);
-        } else {
-            this.rotationYaw = Aura.mc.player.getYaw();
-            this.rotationPitch = Aura.mc.player.getPitch();
-        }
-        if (this.oldDelay.getValue().isEnabled() && this.minCPS.getValue() > this.maxCPS.getValue()) {
-            this.minCPS.setValue(this.maxCPS.getValue());
-        }
-        if (target != null && this.pullDown.getValue().booleanValue() && (Aura.mc.player.hasStatusEffect(StatusEffects.JUMP_BOOST) || !this.onlyJumpBoost.getValue().booleanValue())) {
-            Aura.mc.player.addVelocity(0.0, (double)(-this.pullValue.getValue().floatValue() / 1000.0f), 0.0);
+    @EventHandler
+public void onSync(EventSync e) {
+    if (!this.pauseTimer.passedMs(1000L)) {
+        return;
+    }
+    if (Aura.mc.player.isUsingItem() && this.pauseWhileEating.getValue().booleanValue()) {
+        return;
+    }
+    if (!this.haveWeapon()) {
+        return;
+    }
+    if (target != null && this.rotationMode.getValue() != Mode.None && this.rotationMode.getValue() != Mode.Grim) {
+        Aura.mc.player.setYaw(this.rotationYaw);
+        Aura.mc.player.setPitch(this.rotationPitch);
+    } else {
+        this.rotationYaw = Aura.mc.player.getYaw();
+        this.rotationPitch = Aura.mc.player.getPitch();
+    }
+    if (this.oldDelay.getValue().isEnabled() && this.minCPS.getValue() > this.maxCPS.getValue()) {
+        this.minCPS.setValue(this.maxCPS.getValue());
+    }
+    if (target != null && this.pullDown.getValue().booleanValue() && (Aura.mc.player.hasStatusEffect(StatusEffects.JUMP_BOOST) || !this.onlyJumpBoost.getValue().booleanValue())) {
+        if (Aura.mc.player.getVelocity().y < 0) {
+            Aura.mc.player.setVelocity(Aura.mc.player.getVelocity().x, Aura.mc.player.getVelocity().y - 0.002, Aura.mc.player.getVelocity().z);
         }
     }
+}
 
     @EventHandler
     public void onPacketSend(@NotNull PacketEvent.Send e) {
@@ -477,46 +481,41 @@ extends Module {
     }
 
     private boolean autoCrit() {
-        float f2;
-        boolean reasonForSkipCrit = !this.smartCrit.getValue().isEnabled() || Aura.mc.player.getAbilities().flying || Aura.mc.player.isFallFlying() || Aura.mc.player.hasStatusEffect(StatusEffects.BLINDNESS) || Aura.mc.player.hasStatusEffect(StatusEffects.SLOW_FALLING) || Managers.PLAYER.isInWeb();
-        boolean bl = reasonForSkipCrit;
-        if (this.hitTicks > 0) {
-            return false;
-        }
-        if (this.pauseInInventory.getValue().booleanValue() && Managers.PLAYER.inInventory) {
-            return false;
-        }
-        if (this.getAttackCooldown() < this.attackCooldown.getValue().floatValue() && !this.oldDelay.getValue().isEnabled()) {
-            return false;
-        }
-        boolean mergeWithTargetStrafe = !ModuleManager.targetStrafe.isEnabled() || ModuleManager.targetStrafe.jump.getValue() == false;
-        boolean mergeWithSpeed = !ModuleManager.speed.isEnabled() || Aura.mc.player.isOnGround();
-        boolean bl2 = mergeWithSpeed;
-        if (!Aura.mc.options.jumpKey.isPressed() && mergeWithTargetStrafe && mergeWithSpeed && !this.onlySpace.getValue().booleanValue() && !this.autoJump.getValue().booleanValue()) {
-            return true;
-        }
-        if (Aura.mc.player.isInLava()) {
-            return true;
-        }
-        if (Aura.mc.player.isSubmergedInWater()) {
-            return true;
-        }
-        if (!Aura.mc.options.jumpKey.isPressed() && this.isAboveWater()) {
-            return true;
-        }
-        if (Aura.mc.player.fallDistance > 1.0f && (double)Aura.mc.player.fallDistance < 1.14) {
-            return false;
-        }
-        if (reasonForSkipCrit) {
-            return true;
-        }
-        if (Aura.mc.player.isOnGround()) {
-            return false;
-        }
-        float f = Aura.mc.player.fallDistance;
-        float f3 = f2 = this.shouldRandomizeFallDistance() ? MathUtility.random(0.15f, 0.7f) : this.critFallDistance.getValue().floatValue();
-        return f > f2;
+    boolean reasonForSkipCrit = !this.smartCrit.getValue().isEnabled() || Aura.mc.player.getAbilities().flying || Aura.mc.player.isFallFlying() || Aura.mc.player.hasStatusEffect(StatusEffects.BLINDNESS) || Aura.mc.player.hasStatusEffect(StatusEffects.SLOW_FALLING) || Managers.PLAYER.isInWeb();
+    if (this.hitTicks > 0) {
+        return false;
     }
+    if (this.pauseInInventory.getValue().booleanValue() && Managers.PLAYER.inInventory) {
+        return false;
+    }
+    if (this.getAttackCooldown() < this.attackCooldown.getValue().floatValue() && !this.oldDelay.getValue().isEnabled()) {
+        return false;
+    }
+    boolean mergeWithTargetStrafe = !ModuleManager.targetStrafe.isEnabled() || ModuleManager.targetStrafe.jump.getValue() == false;
+    boolean mergeWithSpeed = !ModuleManager.speed.isEnabled() || Aura.mc.player.isOnGround();
+    if (!Aura.mc.options.jumpKey.isPressed() && mergeWithTargetStrafe && mergeWithSpeed && !this.onlySpace.getValue().booleanValue() && !this.autoJump.getValue().booleanValue()) {
+        return true;
+    }
+    if (Aura.mc.player.isInLava()) {
+        return true;
+    }
+    if (Aura.mc.player.isSubmergedInWater()) {
+        return true;
+    }
+    if (!Aura.mc.options.jumpKey.isPressed() && this.isAboveWater()) {
+        return true;
+    }
+    if (reasonForSkipCrit) {
+        return true;
+    }
+    if (Aura.mc.player.isOnGround()) {
+        return false;
+    }
+    float fallDist = Aura.mc.player.fallDistance;
+    float minFallDist = this.shouldRandomizeFallDistance() ? MathUtility.random(0.08f, 0.14f) : this.critFallDistance.getValue().floatValue();
+    return Aura.mc.player.getVelocity().y < 0.0 && fallDist > minFallDist;
+    }
+    
 
     private boolean shieldBreaker(boolean instant) {
         int axeSlot = InventoryUtility.getAxe().slot();
