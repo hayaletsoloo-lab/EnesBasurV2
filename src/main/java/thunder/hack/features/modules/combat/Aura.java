@@ -416,7 +416,6 @@ private void enableSprint() {
     }
 
     @EventHandler
-    @EventHandler
 public void onSync(EventSync e) {
     if (!this.pauseTimer.passedMs(1000L)) {
         return;
