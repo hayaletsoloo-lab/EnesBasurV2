@@ -321,15 +321,14 @@ extends Module {
     }
 
     public void postAttack(boolean block, boolean sprint) {
-        if (sprint && this.returnSprint.getValue().booleanValue() && this.dropSprint.getValue().booleanValue()) {
-            this.enableSprint();
-        }
-        if (block && this.unpressShield.getValue().booleanValue()) {
-            this.sendSequencedPacket(id -> new PlayerInteractItemC2SPacket(Hand.OFF_HAND, id, this.rotationYaw, this.rotationPitch));
-        }
-        if (this.rotationMode.is(Mode.Grim)) {
-            this.sendPacket((Packet<?>)new PlayerMoveC2SPacket.Full(Aura.mc.player.getX(), Aura.mc.player.getY(), Aura.mc.player.getZ(), Aura.mc.player.getYaw(), Aura.mc.player.getPitch(), Aura.mc.player.isOnGround()));
-        }
+    public void postAttack(boolean block, boolean sprint, boolean isCritting) {
+    if (block && this.unpressShield.getValue().booleanValue()) {
+        this.sendSequencedPacket(id -> new PlayerInteractItemC2SPacket(Hand.OFF_HAND, id, this.rotationYaw, this.rotationPitch));
+    }
+    
+    if (this.rotationMode.is(Mode.Grim)) {
+        this.sendPacket((Packet<?>)new PlayerMoveC2SPacket.Full(Aura.mc.player.getX(), Aura.mc.player.getY(), Aura.mc.player.getZ(), Aura.mc.player.getYaw(), Aura.mc.player.getPitch(), Aura.mc.player.isOnGround()));
+    }
     }
 
     
