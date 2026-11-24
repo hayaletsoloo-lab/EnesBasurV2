@@ -946,7 +946,12 @@ public void onSync(EventSync e) {
         V2;
 
     }
-
+ 
+public static enum SprintMode {
+    HvH,
+    Legit;
+}
+ 
     public static enum Mode {
         Interact,
         Track,
@@ -1042,7 +1047,3 @@ public void onSync(EventSync e) {
     }
 }
 
-public static enum SprintMode {
-    HvH,
-    Legit;
-}
