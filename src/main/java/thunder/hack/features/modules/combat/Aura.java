@@ -166,6 +166,7 @@ extends Module {
     public final Setting<Boolean> elytraTarget = new Setting<Boolean>("ElytraTarget", true);
     public final Setting<SettingGroup> advanced = new Setting<SettingGroup>("Advanced", new SettingGroup(false, 0));
     public final Setting<Float> aimRange = new Setting<Float>("AimRange", Float.valueOf(3.1f), Float.valueOf(0.0f), Float.valueOf(6.0f)).addToGroup(this.advanced);
+    public final Setting<SprintMode> sprintMode = new Setting<SprintMode>("SprintMode", SprintMode.HvH).addToGroup(this.advanced);
     public final Setting<Boolean> randomHitDelay = new Setting<Boolean>("RandomHitDelay", false).addToGroup(this.advanced);
     public final Setting<Boolean> pauseInInventory = new Setting<Boolean>("PauseInInventory", true).addToGroup(this.advanced);
     public final Setting<Boolean> dropSprint = new Setting<Boolean>("DropSprint", true).addToGroup(this.advanced);
@@ -266,12 +267,12 @@ extends Module {
         if (this.shieldBreaker(false)) {
             return;
         }
-        boolean[] playerState = this.preAttack();
+        boolean[] playerState = this.preAttack(isCritting);
         Entity class_12972 = target;
         if (!(class_12972 instanceof PlayerEntity) || !(pl = (PlayerEntity)class_12972).isUsingItem() || pl.getOffHandStack().getItem() != Items.SHIELD || this.ignoreShield.getValue().booleanValue()) {
             this.attack();
         }
-        this.postAttack(playerState[0], playerState[1]);
+        this.postAttack(playerState[0], playerState[1], isCritting);
     }
     }
 
@@ -305,19 +306,17 @@ extends Module {
         }
     }
 
-    private boolean @NotNull [] preAttack() {
-        boolean sprint;
-        boolean blocking = Aura.mc.player.isUsingItem() && Aura.mc.player.getActiveItem().getItem().getUseAction(Aura.mc.player.getActiveItem()) == UseAction.BLOCK;
-        boolean bl = blocking;
-        if (blocking && this.unpressShield.getValue().booleanValue()) {
-            this.sendPacket((Packet<?>)new PlayerActionC2SPacket(PlayerActionC2SPacket.Action.RELEASE_USE_ITEM, BlockPos.ORIGIN, Direction.DOWN));
-        }
-        if ((sprint = Core.serverSprint) && this.dropSprint.getValue().booleanValue()) {
-            this.disableSprint();
-        }
-        if (this.rotationMode.is(Mode.Grim)) {
-            this.sendPacket((Packet<?>)new PlayerMoveC2SPacket.Full(Aura.mc.player.getX(), Aura.mc.player.getY(), Aura.mc.player.getZ(), this.rotationYaw, this.rotationPitch, Aura.mc.player.isOnGround()));
-        }
+    private boolean @NotNull [] preAttack(boolean isCritting) {
+    boolean blocking = Aura.mc.player.isUsingItem() && Aura.mc.player.getActiveItem().getItem().getUseAction(Aura.mc.player.getActiveItem()) == UseAction.BLOCK;
+    boolean sprint = Core.serverSprint;
+    
+    if (blocking && this.unpressShield.getValue().booleanValue()) {
+        this.sendPacket((Packet<?>)new PlayerActionC2SPacket(PlayerActionC2SPacket.Action.RELEASE_USE_ITEM, BlockPos.ORIGIN, Direction.DOWN));
+    }
+    
+    if (this.rotationMode.is(Mode.Grim)) {
+        this.sendPacket((Packet<?>)new PlayerMoveC2SPacket.Full(Aura.mc.player.getX(), Aura.mc.player.getY(), Aura.mc.player.getZ(), this.rotationYaw, this.rotationPitch, Aura.mc.player.isOnGround()));
+    }
         return new boolean[]{blocking, sprint};
     }
 
@@ -415,7 +414,7 @@ private void enableSprint() {
         --this.hitTicks;
     }
 
-    @EventHandler
+     @EventHandler
 public void onSync(EventSync e) {
     if (!this.pauseTimer.passedMs(1000L)) {
         return;
@@ -440,6 +439,10 @@ public void onSync(EventSync e) {
         if (Aura.mc.player.getVelocity().y < 0) {
             Aura.mc.player.setVelocity(Aura.mc.player.getVelocity().x, Aura.mc.player.getVelocity().y - 0.002, Aura.mc.player.getVelocity().z);
         }
+    }
+    if (this.sprintMode.getValue() == SprintMode.Legit && target != null && Aura.mc.player.isSprinting() && this.isInRange(target)) {
+        Vec3d vel = Aura.mc.player.getVelocity();
+        Aura.mc.player.setVelocity(vel.x * 0.6, vel.y, vel.z * 0.6);
     }
 }
 
@@ -480,6 +483,10 @@ public void onSync(EventSync e) {
     }
 
     private boolean autoCrit() {
+    if (this.sprintMode.getValue() == SprintMode.HvH) {
+        return true;
+    }
+    
     boolean reasonForSkipCrit = !this.smartCrit.getValue().isEnabled() || Aura.mc.player.getAbilities().flying || Aura.mc.player.isFallFlying() || Aura.mc.player.hasStatusEffect(StatusEffects.BLINDNESS) || Aura.mc.player.hasStatusEffect(StatusEffects.SLOW_FALLING) || Managers.PLAYER.isInWeb();
     if (this.hitTicks > 0) {
         return false;
@@ -1039,3 +1046,7 @@ public void onSync(EventSync e) {
     }
 }
 
+public static enum SprintMode {
+    HvH,
+    Legit;
+}
