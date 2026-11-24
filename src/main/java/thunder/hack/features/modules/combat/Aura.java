@@ -1,4 +1,4 @@
-/*
+ /*
  * Decompiled with CFR 0.152.
  * 
  * Could not load the following classes:
@@ -317,11 +317,10 @@ extends Module {
     if (this.rotationMode.is(Mode.Grim)) {
         this.sendPacket((Packet<?>)new PlayerMoveC2SPacket.Full(Aura.mc.player.getX(), Aura.mc.player.getY(), Aura.mc.player.getZ(), this.rotationYaw, this.rotationPitch, Aura.mc.player.isOnGround()));
     }
-        return new boolean[]{blocking, sprint};
-    }
+    return new boolean[]{blocking, sprint};
+}
 
-    public void postAttack(boolean block, boolean sprint) {
-    public void postAttack(boolean block, boolean sprint, boolean isCritting) {
+public void postAttack(boolean block, boolean sprint, boolean isCritting) {
     if (block && this.unpressShield.getValue().booleanValue()) {
         this.sendSequencedPacket(id -> new PlayerInteractItemC2SPacket(Hand.OFF_HAND, id, this.rotationYaw, this.rotationPitch));
     }
@@ -329,9 +328,7 @@ extends Module {
     if (this.rotationMode.is(Mode.Grim)) {
         this.sendPacket((Packet<?>)new PlayerMoveC2SPacket.Full(Aura.mc.player.getX(), Aura.mc.player.getY(), Aura.mc.player.getZ(), Aura.mc.player.getYaw(), Aura.mc.player.getPitch(), Aura.mc.player.isOnGround()));
     }
-    }
-
-    
+}    
     private void disableSprint() {
     Aura.mc.player.setSprinting(false);
     this.sendPacket((Packet<?>)new ClientCommandC2SPacket((Entity)Aura.mc.player, ClientCommandC2SPacket.Mode.STOP_SPRINTING));
